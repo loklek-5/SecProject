@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "background": {
+    "page": "popup.html"
+    },
+  "name": "YT Down",
+  "description": "This extension will dwonload any YT video with the highest quality",
+  "version": "1.0",
+
+  "browser_action": {
+   "default_icon": "icone.png",
+   "default_popup": "popup.html"
+  },
+  "permissions": [
+   "activeTab",
+   "tabs",
+   "contextMenus",
+   "https://*/",
+   "http://*/",
+   "unlimitedStorage",
+   {"fileSystem": ["write", "retainEntries", "directory"]}
+   ]
+}
