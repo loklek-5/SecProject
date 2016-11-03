@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+require=(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 module.exports = {
   XmlEntities: require('./lib/xml-entities.js'),
   Html4Entities: require('./lib/html4-entities.js'),
@@ -2084,7 +2084,126 @@ module.exports = XmlEntities;
 })(typeof exports === 'undefined' ? this.sax = {} : exports)
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":19,"stream":46,"string_decoder":51}],6:[function(require,module,exports){
+},{"buffer":19,"stream":47,"string_decoder":52}],6:[function(require,module,exports){
+module.exports = function () {
+	this.defaultEquals = true; // If we can't find a valid handler default to key==val behaviour (i.e. {'foo': 'bar'} tests that the key 'foo' is the value 'bar')
+	this.silent = false; // Shut up if we cant find a suitable handler
+
+	this.handlers = [];
+
+	this.myFilter = null;
+	this.myData = null;
+	this.myLimit = null;
+	this.myWantArray = false;
+
+	this.init = function() {
+		this.addHandler(/^(.*?) ={1,2}$/, function(key, val, data) { // {'foo =': 'bar'} or {'foo ==': 'bar'}
+			return (data[key] == val);
+		});
+		this.addHandler(/^(.*?) >$/, function(key, val, data) { // {'foo >': 'bar'}
+			return (data[key] > val);
+		});
+		this.addHandler(/^(.*?) <$/, function(key, val, data) { // {'foo <': 'bar'}
+			return (data[key] < val);
+		});
+		this.addHandler(/^(.*?) (?:>=|=>)$/, function(key, val, data) { // {'foo >=': 'bar'} (or '=>')
+			return (data[key] >= val);
+		});
+		this.addHandler(/^(.*?) (?:<=|=<)$/, function(key, val, data) { // {'foo <=': 'bar'} or ('=<')
+			return (data[key] <= val);
+		});
+	};
+
+	// Simple setters {{{
+	this.filter = function(filter) {
+		this.myFilter = filter;
+		return this;
+	};
+
+	this.data = function(data) {
+		this.myData = data;
+		return this;
+	};
+
+	this.limit = function(limit) {
+		this.myLimit = limit;
+		return this;
+	};
+
+	this.wantArray = function(wantArray) {
+		this.myWantArray = wantArray === undefined ? true : wantArray;
+		return this;
+	};
+	// }}}
+
+	this.reset = function() {
+		this.myData = null;
+		this.myFilter = null;
+		this.myWantArray = false;
+		this.myLimit = 0;
+		return this;
+	};
+
+	this.addHandler = function(re, callback) {
+		this.handlers.push([re, callback]);
+	};
+
+	this.exec = function(filter, data, limit) {
+		var out = this.myWantArray ? [] : {};
+		var found = 0;
+		if (!filter)
+			filter = this.myFilter;
+		if (!data)
+			data = this.myData;
+		if (!limit)
+			limit = this.myLimit;
+
+		for (var id in data) {
+			var row = data[id];
+			if (this.matches(filter, row)) {
+				if (this.myWantArray) {
+					out.push(row);
+				} else
+					out[id] = row;
+
+				if (limit && ++found >= limit)
+					break;
+			}
+		}
+		return out;
+	};
+
+	this.matches = function(filter, data) {
+		for (var key in filter) {
+			var handled = false;
+			for (var h in this.handlers) {
+				var matches;
+				if (matches = this.handlers[h][0].exec(key)) { // Use this handler
+					handled = true;
+					if (this.handlers[h][1](matches[1], filter[key], data)) {
+						// console.log('OK');
+					} else {
+						return false;
+					}
+				}
+			}
+			if (!handled)
+				if (this.defaultEquals) {
+					if (data[key] != filter[key])
+						return false;
+				} else {
+					if (!this.silent)
+						console.warn('No filter matching incomming string "' + key + '". Defaulting to no-match');
+					return false;
+				}
+		}
+		return true;
+	};
+
+	this.init();
+}
+
+},{}],7:[function(require,module,exports){
 // A cache to keep track of html5player tokens, so that we don't request
 // these static files from Youtube and parse them every time a video
 // needs the same one.
@@ -2111,7 +2230,7 @@ exports.get = function(key) {
   return exports.store[key];
 };
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 /**
  * http://en.wikipedia.org/wiki/YouTube#Quality_and_formats
  */
@@ -2730,7 +2849,7 @@ module.exports = {
 
 };
 
-},{}],8:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 var PassThrough = require('stream').PassThrough;
 var request     = require('./request');
 var getInfo     = require('./info');
@@ -2865,7 +2984,7 @@ ytdl.downloadFromInfo = function(info, options) {
   return stream;
 };
 
-},{"./cache":6,"./info":9,"./request":10,"./util":12,"stream":46}],9:[function(require,module,exports){
+},{"./cache":7,"./info":10,"./request":11,"./util":13,"stream":47}],10:[function(require,module,exports){
 var format      = require('url').format;
 var querystring = require('querystring');
 var sax         = require('sax');
@@ -3195,7 +3314,7 @@ function getM3U8(url, options, callback) {
   });
 }
 
-},{"./formats":7,"./request":10,"./sig":11,"./util":12,"querystring":34,"sax":5,"url":53}],10:[function(require,module,exports){
+},{"./formats":8,"./request":11,"./sig":12,"./util":13,"querystring":35,"sax":5,"url":54}],11:[function(require,module,exports){
 var http  = require('http');
 var https = require('https');
 var parse = require('url').parse;
@@ -3245,7 +3364,7 @@ module.exports = function(url, options, callback) {
   return req;
 };
 
-},{"./util":12,"http":47,"https":23,"url":53}],11:[function(require,module,exports){
+},{"./util":13,"http":48,"https":24,"url":54}],12:[function(require,module,exports){
 (function (__dirname){
 var fs      = require('fs');
 var path    = require('path');
@@ -3521,7 +3640,7 @@ exports.extractActions = function(body) {
 };
 
 }).call(this,"/node_modules/ytdl-core/lib")
-},{"../test/html5player.json":13,"./cache":6,"./request":10,"fs":15,"path":28,"url":53}],12:[function(require,module,exports){
+},{"../test/html5player.json":14,"./cache":7,"./request":11,"fs":"fs","path":29,"url":54}],13:[function(require,module,exports){
 var qs       = require('querystring');
 var url      = require('url');
 var Entities = require('html-entities').AllHtmlEntities;
@@ -3858,7 +3977,7 @@ exports.assignDeep = function(target, source) {
   }
 };
 
-},{"./formats":7,"html-entities":1,"querystring":34,"url":53}],13:[function(require,module,exports){
+},{"./formats":8,"html-entities":1,"querystring":35,"url":54}],14:[function(require,module,exports){
 module.exports={
   "en_US-vfl0Cbn9e": [
     "w15",
@@ -3941,26 +4060,41 @@ module.exports={
     "r"
   ]
 }
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 var ytdl = require('ytdl-core');
+var simpleJSONFilter = require('simple-json-filter');
+var sjf = new simpleJSONFilter();
+var filter = {resolution: null};
+var filter2 = {container: 'mp4'};
 chrome.tabs.getSelected(null,function(tab) {
     var tablink = tab.url;
     ytdl.getInfo(tablink, function(err, info) {
 
         if (err) return done(err);
+        //2 filter  partie audio 
+        var result = sjf.exec(filter, info.formats);
+        var result2 = sjf.exec(filter2, result);
+        for(var i in result2){
+        	var audioUrl = result2[i].url;
+        }
         alert(info.description);
+
         var a = document.getElementById('tel'); //or grab it by tagname etc
         a.href = info.formats[0].url;
         a.download=info.title;
+        a.setAttribute('name', "democlass");
+
+        var b = document.getElementById('audio'); //or grab it by tagname etc
+        console.log(audioUrl);
+        b.href = audioUrl;
+        b.download=info.title+".mp3";
     });
 
 });
 
 
 
-},{"ytdl-core":8}],15:[function(require,module,exports){
-
-},{}],16:[function(require,module,exports){
+},{"simple-json-filter":6,"ytdl-core":9}],16:[function(require,module,exports){
 'use strict'
 
 exports.byteLength = byteLength
@@ -4077,8 +4211,8 @@ function fromByteArray (uint8) {
 }
 
 },{}],17:[function(require,module,exports){
-arguments[4][15][0].apply(exports,arguments)
-},{"dup":15}],18:[function(require,module,exports){
+
+},{}],18:[function(require,module,exports){
 (function (global){
 'use strict';
 
@@ -5983,7 +6117,7 @@ function isnan (val) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"base64-js":16,"ieee754":24,"isarray":27}],20:[function(require,module,exports){
+},{"base64-js":16,"ieee754":25,"isarray":28}],20:[function(require,module,exports){
 module.exports = {
   "100": "Continue",
   "101": "Switching Protocols",
@@ -6049,6 +6183,217 @@ module.exports = {
 }
 
 },{}],21:[function(require,module,exports){
+module.exports={
+  "O_RDONLY": 0,
+  "O_WRONLY": 1,
+  "O_RDWR": 2,
+  "S_IFMT": 61440,
+  "S_IFREG": 32768,
+  "S_IFDIR": 16384,
+  "S_IFCHR": 8192,
+  "S_IFBLK": 24576,
+  "S_IFIFO": 4096,
+  "S_IFLNK": 40960,
+  "S_IFSOCK": 49152,
+  "O_CREAT": 512,
+  "O_EXCL": 2048,
+  "O_NOCTTY": 131072,
+  "O_TRUNC": 1024,
+  "O_APPEND": 8,
+  "O_DIRECTORY": 1048576,
+  "O_NOFOLLOW": 256,
+  "O_SYNC": 128,
+  "O_SYMLINK": 2097152,
+  "O_NONBLOCK": 4,
+  "S_IRWXU": 448,
+  "S_IRUSR": 256,
+  "S_IWUSR": 128,
+  "S_IXUSR": 64,
+  "S_IRWXG": 56,
+  "S_IRGRP": 32,
+  "S_IWGRP": 16,
+  "S_IXGRP": 8,
+  "S_IRWXO": 7,
+  "S_IROTH": 4,
+  "S_IWOTH": 2,
+  "S_IXOTH": 1,
+  "E2BIG": 7,
+  "EACCES": 13,
+  "EADDRINUSE": 48,
+  "EADDRNOTAVAIL": 49,
+  "EAFNOSUPPORT": 47,
+  "EAGAIN": 35,
+  "EALREADY": 37,
+  "EBADF": 9,
+  "EBADMSG": 94,
+  "EBUSY": 16,
+  "ECANCELED": 89,
+  "ECHILD": 10,
+  "ECONNABORTED": 53,
+  "ECONNREFUSED": 61,
+  "ECONNRESET": 54,
+  "EDEADLK": 11,
+  "EDESTADDRREQ": 39,
+  "EDOM": 33,
+  "EDQUOT": 69,
+  "EEXIST": 17,
+  "EFAULT": 14,
+  "EFBIG": 27,
+  "EHOSTUNREACH": 65,
+  "EIDRM": 90,
+  "EILSEQ": 92,
+  "EINPROGRESS": 36,
+  "EINTR": 4,
+  "EINVAL": 22,
+  "EIO": 5,
+  "EISCONN": 56,
+  "EISDIR": 21,
+  "ELOOP": 62,
+  "EMFILE": 24,
+  "EMLINK": 31,
+  "EMSGSIZE": 40,
+  "EMULTIHOP": 95,
+  "ENAMETOOLONG": 63,
+  "ENETDOWN": 50,
+  "ENETRESET": 52,
+  "ENETUNREACH": 51,
+  "ENFILE": 23,
+  "ENOBUFS": 55,
+  "ENODATA": 96,
+  "ENODEV": 19,
+  "ENOENT": 2,
+  "ENOEXEC": 8,
+  "ENOLCK": 77,
+  "ENOLINK": 97,
+  "ENOMEM": 12,
+  "ENOMSG": 91,
+  "ENOPROTOOPT": 42,
+  "ENOSPC": 28,
+  "ENOSR": 98,
+  "ENOSTR": 99,
+  "ENOSYS": 78,
+  "ENOTCONN": 57,
+  "ENOTDIR": 20,
+  "ENOTEMPTY": 66,
+  "ENOTSOCK": 38,
+  "ENOTSUP": 45,
+  "ENOTTY": 25,
+  "ENXIO": 6,
+  "EOPNOTSUPP": 102,
+  "EOVERFLOW": 84,
+  "EPERM": 1,
+  "EPIPE": 32,
+  "EPROTO": 100,
+  "EPROTONOSUPPORT": 43,
+  "EPROTOTYPE": 41,
+  "ERANGE": 34,
+  "EROFS": 30,
+  "ESPIPE": 29,
+  "ESRCH": 3,
+  "ESTALE": 70,
+  "ETIME": 101,
+  "ETIMEDOUT": 60,
+  "ETXTBSY": 26,
+  "EWOULDBLOCK": 35,
+  "EXDEV": 18,
+  "SIGHUP": 1,
+  "SIGINT": 2,
+  "SIGQUIT": 3,
+  "SIGILL": 4,
+  "SIGTRAP": 5,
+  "SIGABRT": 6,
+  "SIGIOT": 6,
+  "SIGBUS": 10,
+  "SIGFPE": 8,
+  "SIGKILL": 9,
+  "SIGUSR1": 30,
+  "SIGSEGV": 11,
+  "SIGUSR2": 31,
+  "SIGPIPE": 13,
+  "SIGALRM": 14,
+  "SIGTERM": 15,
+  "SIGCHLD": 20,
+  "SIGCONT": 19,
+  "SIGSTOP": 17,
+  "SIGTSTP": 18,
+  "SIGTTIN": 21,
+  "SIGTTOU": 22,
+  "SIGURG": 16,
+  "SIGXCPU": 24,
+  "SIGXFSZ": 25,
+  "SIGVTALRM": 26,
+  "SIGPROF": 27,
+  "SIGWINCH": 28,
+  "SIGIO": 23,
+  "SIGSYS": 12,
+  "SSL_OP_ALL": 2147486719,
+  "SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION": 262144,
+  "SSL_OP_CIPHER_SERVER_PREFERENCE": 4194304,
+  "SSL_OP_CISCO_ANYCONNECT": 32768,
+  "SSL_OP_COOKIE_EXCHANGE": 8192,
+  "SSL_OP_CRYPTOPRO_TLSEXT_BUG": 2147483648,
+  "SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS": 2048,
+  "SSL_OP_EPHEMERAL_RSA": 0,
+  "SSL_OP_LEGACY_SERVER_CONNECT": 4,
+  "SSL_OP_MICROSOFT_BIG_SSLV3_BUFFER": 32,
+  "SSL_OP_MICROSOFT_SESS_ID_BUG": 1,
+  "SSL_OP_MSIE_SSLV2_RSA_PADDING": 0,
+  "SSL_OP_NETSCAPE_CA_DN_BUG": 536870912,
+  "SSL_OP_NETSCAPE_CHALLENGE_BUG": 2,
+  "SSL_OP_NETSCAPE_DEMO_CIPHER_CHANGE_BUG": 1073741824,
+  "SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG": 8,
+  "SSL_OP_NO_COMPRESSION": 131072,
+  "SSL_OP_NO_QUERY_MTU": 4096,
+  "SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION": 65536,
+  "SSL_OP_NO_SSLv2": 16777216,
+  "SSL_OP_NO_SSLv3": 33554432,
+  "SSL_OP_NO_TICKET": 16384,
+  "SSL_OP_NO_TLSv1": 67108864,
+  "SSL_OP_NO_TLSv1_1": 268435456,
+  "SSL_OP_NO_TLSv1_2": 134217728,
+  "SSL_OP_PKCS1_CHECK_1": 0,
+  "SSL_OP_PKCS1_CHECK_2": 0,
+  "SSL_OP_SINGLE_DH_USE": 1048576,
+  "SSL_OP_SINGLE_ECDH_USE": 524288,
+  "SSL_OP_SSLEAY_080_CLIENT_DH_BUG": 128,
+  "SSL_OP_SSLREF2_REUSE_CERT_TYPE_BUG": 0,
+  "SSL_OP_TLS_BLOCK_PADDING_BUG": 512,
+  "SSL_OP_TLS_D5_BUG": 256,
+  "SSL_OP_TLS_ROLLBACK_BUG": 8388608,
+  "ENGINE_METHOD_DSA": 2,
+  "ENGINE_METHOD_DH": 4,
+  "ENGINE_METHOD_RAND": 8,
+  "ENGINE_METHOD_ECDH": 16,
+  "ENGINE_METHOD_ECDSA": 32,
+  "ENGINE_METHOD_CIPHERS": 64,
+  "ENGINE_METHOD_DIGESTS": 128,
+  "ENGINE_METHOD_STORE": 256,
+  "ENGINE_METHOD_PKEY_METHS": 512,
+  "ENGINE_METHOD_PKEY_ASN1_METHS": 1024,
+  "ENGINE_METHOD_ALL": 65535,
+  "ENGINE_METHOD_NONE": 0,
+  "DH_CHECK_P_NOT_SAFE_PRIME": 2,
+  "DH_CHECK_P_NOT_PRIME": 1,
+  "DH_UNABLE_TO_CHECK_GENERATOR": 4,
+  "DH_NOT_SUITABLE_GENERATOR": 8,
+  "NPN_ENABLED": 1,
+  "RSA_PKCS1_PADDING": 1,
+  "RSA_SSLV23_PADDING": 2,
+  "RSA_NO_PADDING": 3,
+  "RSA_PKCS1_OAEP_PADDING": 4,
+  "RSA_X931_PADDING": 5,
+  "RSA_PKCS1_PSS_PADDING": 6,
+  "POINT_CONVERSION_COMPRESSED": 2,
+  "POINT_CONVERSION_UNCOMPRESSED": 4,
+  "POINT_CONVERSION_HYBRID": 6,
+  "F_OK": 0,
+  "R_OK": 4,
+  "W_OK": 2,
+  "X_OK": 1,
+  "UV_UDP_REUSEADDR": 4
+}
+
+},{}],22:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -6159,7 +6504,7 @@ function objectToString(o) {
 }
 
 }).call(this,{"isBuffer":require("../../is-buffer/index.js")})
-},{"../../is-buffer/index.js":26}],22:[function(require,module,exports){
+},{"../../is-buffer/index.js":27}],23:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -6463,7 +6808,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 var http = require('http');
 
 var https = module.exports;
@@ -6479,7 +6824,7 @@ https.request = function (params, cb) {
     return http.request.call(this, params, cb);
 }
 
-},{"http":47}],24:[function(require,module,exports){
+},{"http":48}],25:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -6565,7 +6910,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -6590,7 +6935,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /*!
  * Determine if an object is a Buffer
  *
@@ -6613,14 +6958,14 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
 }
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = Array.isArray || function (arr) {
   return toString.call(arr) == '[object Array]';
 };
 
-},{}],28:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -6848,7 +7193,7 @@ var substr = 'ab'.substr(-1) === 'b'
 ;
 
 }).call(this,require('_process'))
-},{"_process":30}],29:[function(require,module,exports){
+},{"_process":31}],30:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -6895,7 +7240,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 }
 
 }).call(this,require('_process'))
-},{"_process":30}],30:[function(require,module,exports){
+},{"_process":31}],31:[function(require,module,exports){
 // shim for using process in browser
 var process = module.exports = {};
 
@@ -7077,7 +7422,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 (function (global){
 /*! https://mths.be/punycode v1.4.1 by @mathias */
 ;(function(root) {
@@ -7614,7 +7959,7 @@ process.umask = function() { return 0; };
 }(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],32:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7700,7 +8045,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],33:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7787,16 +8132,16 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":32,"./encode":33}],35:[function(require,module,exports){
+},{"./decode":33,"./encode":34}],36:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":36}],36:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":37}],37:[function(require,module,exports){
 // a duplex stream is just a stream that is both readable and writable.
 // Since JS doesn't have multiple prototypal inheritance, this class
 // prototypally inherits from Readable, and then parasitically from
@@ -7872,7 +8217,7 @@ function forEach(xs, f) {
     f(xs[i], i);
   }
 }
-},{"./_stream_readable":38,"./_stream_writable":40,"core-util-is":21,"inherits":25,"process-nextick-args":29}],37:[function(require,module,exports){
+},{"./_stream_readable":39,"./_stream_writable":41,"core-util-is":22,"inherits":26,"process-nextick-args":30}],38:[function(require,module,exports){
 // a passthrough stream.
 // basically just the most minimal sort of Transform stream.
 // Every written chunk gets output as-is.
@@ -7899,7 +8244,7 @@ function PassThrough(options) {
 PassThrough.prototype._transform = function (chunk, encoding, cb) {
   cb(null, chunk);
 };
-},{"./_stream_transform":39,"core-util-is":21,"inherits":25}],38:[function(require,module,exports){
+},{"./_stream_transform":40,"core-util-is":22,"inherits":26}],39:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -8839,7 +9184,7 @@ function indexOf(xs, x) {
   return -1;
 }
 }).call(this,require('_process'))
-},{"./_stream_duplex":36,"./internal/streams/BufferList":41,"_process":30,"buffer":19,"buffer-shims":18,"core-util-is":21,"events":22,"inherits":25,"isarray":27,"process-nextick-args":29,"string_decoder/":51,"util":17}],39:[function(require,module,exports){
+},{"./_stream_duplex":37,"./internal/streams/BufferList":42,"_process":31,"buffer":19,"buffer-shims":18,"core-util-is":22,"events":23,"inherits":26,"isarray":28,"process-nextick-args":30,"string_decoder/":52,"util":17}],40:[function(require,module,exports){
 // a transform stream is a readable/writable stream where you do
 // something with the data.  Sometimes it's called a "filter",
 // but that's not a great name for it, since that implies a thing where
@@ -9020,7 +9365,7 @@ function done(stream, er) {
 
   return stream.push(null);
 }
-},{"./_stream_duplex":36,"core-util-is":21,"inherits":25}],40:[function(require,module,exports){
+},{"./_stream_duplex":37,"core-util-is":22,"inherits":26}],41:[function(require,module,exports){
 (function (process){
 // A bit simpler than readable streams.
 // Implement an async ._write(chunk, encoding, cb), and it'll handle all
@@ -9549,7 +9894,7 @@ function CorkedRequest(state) {
   };
 }
 }).call(this,require('_process'))
-},{"./_stream_duplex":36,"_process":30,"buffer":19,"buffer-shims":18,"core-util-is":21,"events":22,"inherits":25,"process-nextick-args":29,"util-deprecate":55}],41:[function(require,module,exports){
+},{"./_stream_duplex":37,"_process":31,"buffer":19,"buffer-shims":18,"core-util-is":22,"events":23,"inherits":26,"process-nextick-args":30,"util-deprecate":56}],42:[function(require,module,exports){
 'use strict';
 
 var Buffer = require('buffer').Buffer;
@@ -9614,10 +9959,10 @@ BufferList.prototype.concat = function (n) {
   }
   return ret;
 };
-},{"buffer":19,"buffer-shims":18}],42:[function(require,module,exports){
+},{"buffer":19,"buffer-shims":18}],43:[function(require,module,exports){
 module.exports = require("./lib/_stream_passthrough.js")
 
-},{"./lib/_stream_passthrough.js":37}],43:[function(require,module,exports){
+},{"./lib/_stream_passthrough.js":38}],44:[function(require,module,exports){
 (function (process){
 var Stream = (function (){
   try {
@@ -9637,13 +9982,13 @@ if (!process.browser && process.env.READABLE_STREAM === 'disable' && Stream) {
 }
 
 }).call(this,require('_process'))
-},{"./lib/_stream_duplex.js":36,"./lib/_stream_passthrough.js":37,"./lib/_stream_readable.js":38,"./lib/_stream_transform.js":39,"./lib/_stream_writable.js":40,"_process":30}],44:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":37,"./lib/_stream_passthrough.js":38,"./lib/_stream_readable.js":39,"./lib/_stream_transform.js":40,"./lib/_stream_writable.js":41,"_process":31}],45:[function(require,module,exports){
 module.exports = require("./lib/_stream_transform.js")
 
-},{"./lib/_stream_transform.js":39}],45:[function(require,module,exports){
+},{"./lib/_stream_transform.js":40}],46:[function(require,module,exports){
 module.exports = require("./lib/_stream_writable.js")
 
-},{"./lib/_stream_writable.js":40}],46:[function(require,module,exports){
+},{"./lib/_stream_writable.js":41}],47:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -9772,7 +10117,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":22,"inherits":25,"readable-stream/duplex.js":35,"readable-stream/passthrough.js":42,"readable-stream/readable.js":43,"readable-stream/transform.js":44,"readable-stream/writable.js":45}],47:[function(require,module,exports){
+},{"events":23,"inherits":26,"readable-stream/duplex.js":36,"readable-stream/passthrough.js":43,"readable-stream/readable.js":44,"readable-stream/transform.js":45,"readable-stream/writable.js":46}],48:[function(require,module,exports){
 (function (global){
 var ClientRequest = require('./lib/request')
 var extend = require('xtend')
@@ -9854,7 +10199,7 @@ http.METHODS = [
 	'UNSUBSCRIBE'
 ]
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./lib/request":49,"builtin-status-codes":20,"url":53,"xtend":56}],48:[function(require,module,exports){
+},{"./lib/request":50,"builtin-status-codes":20,"url":54,"xtend":60}],49:[function(require,module,exports){
 (function (global){
 exports.fetch = isFunction(global.fetch) && isFunction(global.ReadableStream)
 
@@ -9898,7 +10243,7 @@ function isFunction (value) {
 xhr = null // Help gc
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],49:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 (function (process,global,Buffer){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -10184,7 +10529,7 @@ var unsafeHeaders = [
 ]
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":48,"./response":50,"_process":30,"buffer":19,"inherits":25,"readable-stream":43,"to-arraybuffer":52}],50:[function(require,module,exports){
+},{"./capability":49,"./response":51,"_process":31,"buffer":19,"inherits":26,"readable-stream":44,"to-arraybuffer":53}],51:[function(require,module,exports){
 (function (process,global,Buffer){
 var capability = require('./capability')
 var inherits = require('inherits')
@@ -10368,7 +10713,7 @@ IncomingMessage.prototype._onXHRProgress = function () {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./capability":48,"_process":30,"buffer":19,"inherits":25,"readable-stream":43}],51:[function(require,module,exports){
+},{"./capability":49,"_process":31,"buffer":19,"inherits":26,"readable-stream":44}],52:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -10591,7 +10936,7 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":19}],52:[function(require,module,exports){
+},{"buffer":19}],53:[function(require,module,exports){
 var Buffer = require('buffer').Buffer
 
 module.exports = function (buf) {
@@ -10620,7 +10965,7 @@ module.exports = function (buf) {
 	}
 }
 
-},{"buffer":19}],53:[function(require,module,exports){
+},{"buffer":19}],54:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -11354,7 +11699,7 @@ Url.prototype.parseHost = function() {
   if (host) this.hostname = host;
 };
 
-},{"./util":54,"punycode":31,"querystring":34}],54:[function(require,module,exports){
+},{"./util":55,"punycode":32,"querystring":35}],55:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -11372,7 +11717,7 @@ module.exports = {
   }
 };
 
-},{}],55:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 (function (global){
 
 /**
@@ -11443,7 +11788,606 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],56:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],58:[function(require,module,exports){
+module.exports = function isBuffer(arg) {
+  return arg && typeof arg === 'object'
+    && typeof arg.copy === 'function'
+    && typeof arg.fill === 'function'
+    && typeof arg.readUInt8 === 'function';
+}
+},{}],59:[function(require,module,exports){
+(function (process,global){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (!isString(f)) {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(inspect(arguments[i]));
+    }
+    return objects.join(' ');
+  }
+
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j':
+        try {
+          return JSON.stringify(args[i++]);
+        } catch (_) {
+          return '[Circular]';
+        }
+      default:
+        return x;
+    }
+  });
+  for (var x = args[i]; i < len; x = args[++i]) {
+    if (isNull(x) || !isObject(x)) {
+      str += ' ' + x;
+    } else {
+      str += ' ' + inspect(x);
+    }
+  }
+  return str;
+};
+
+
+// Mark that a method should not be used.
+// Returns a modified function which warns once by default.
+// If --no-deprecation is set, then it is a no-op.
+exports.deprecate = function(fn, msg) {
+  // Allow for deprecating things in the process of starting up.
+  if (isUndefined(global.process)) {
+    return function() {
+      return exports.deprecate(fn, msg).apply(this, arguments);
+    };
+  }
+
+  if (process.noDeprecation === true) {
+    return fn;
+  }
+
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (process.throwDeprecation) {
+        throw new Error(msg);
+      } else if (process.traceDeprecation) {
+        console.trace(msg);
+      } else {
+        console.error(msg);
+      }
+      warned = true;
+    }
+    return fn.apply(this, arguments);
+  }
+
+  return deprecated;
+};
+
+
+var debugs = {};
+var debugEnviron;
+exports.debuglog = function(set) {
+  if (isUndefined(debugEnviron))
+    debugEnviron = process.env.NODE_DEBUG || '';
+  set = set.toUpperCase();
+  if (!debugs[set]) {
+    if (new RegExp('\\b' + set + '\\b', 'i').test(debugEnviron)) {
+      var pid = process.pid;
+      debugs[set] = function() {
+        var msg = exports.format.apply(exports, arguments);
+        console.error('%s %d: %s', set, pid, msg);
+      };
+    } else {
+      debugs[set] = function() {};
+    }
+  }
+  return debugs[set];
+};
+
+
+/**
+ * Echos the value of a value. Trys to print the value out
+ * in the best way possible given the different types.
+ *
+ * @param {Object} obj The object to print out.
+ * @param {Object} opts Optional options object that alters the output.
+ */
+/* legacy: obj, showHidden, depth, colors*/
+function inspect(obj, opts) {
+  // default options
+  var ctx = {
+    seen: [],
+    stylize: stylizeNoColor
+  };
+  // legacy...
+  if (arguments.length >= 3) ctx.depth = arguments[2];
+  if (arguments.length >= 4) ctx.colors = arguments[3];
+  if (isBoolean(opts)) {
+    // legacy...
+    ctx.showHidden = opts;
+  } else if (opts) {
+    // got an "options" object
+    exports._extend(ctx, opts);
+  }
+  // set default options
+  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
+  if (isUndefined(ctx.depth)) ctx.depth = 2;
+  if (isUndefined(ctx.colors)) ctx.colors = false;
+  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
+  if (ctx.colors) ctx.stylize = stylizeWithColor;
+  return formatValue(ctx, obj, ctx.depth);
+}
+exports.inspect = inspect;
+
+
+// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+inspect.colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+};
+
+// Don't use 'blue' not visible on cmd.exe
+inspect.styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+};
+
+
+function stylizeWithColor(str, styleType) {
+  var style = inspect.styles[styleType];
+
+  if (style) {
+    return '\u001b[' + inspect.colors[style][0] + 'm' + str +
+           '\u001b[' + inspect.colors[style][1] + 'm';
+  } else {
+    return str;
+  }
+}
+
+
+function stylizeNoColor(str, styleType) {
+  return str;
+}
+
+
+function arrayToHash(array) {
+  var hash = {};
+
+  array.forEach(function(val, idx) {
+    hash[val] = true;
+  });
+
+  return hash;
+}
+
+
+function formatValue(ctx, value, recurseTimes) {
+  // Provide a hook for user-specified inspect functions.
+  // Check that value is an object with an inspect function on it
+  if (ctx.customInspect &&
+      value &&
+      isFunction(value.inspect) &&
+      // Filter out the util module, it's inspect function is special
+      value.inspect !== exports.inspect &&
+      // Also filter out any prototype objects using the circular check.
+      !(value.constructor && value.constructor.prototype === value)) {
+    var ret = value.inspect(recurseTimes, ctx);
+    if (!isString(ret)) {
+      ret = formatValue(ctx, ret, recurseTimes);
+    }
+    return ret;
+  }
+
+  // Primitive types cannot have properties
+  var primitive = formatPrimitive(ctx, value);
+  if (primitive) {
+    return primitive;
+  }
+
+  // Look up the keys of the object.
+  var keys = Object.keys(value);
+  var visibleKeys = arrayToHash(keys);
+
+  if (ctx.showHidden) {
+    keys = Object.getOwnPropertyNames(value);
+  }
+
+  // IE doesn't make error fields non-enumerable
+  // http://msdn.microsoft.com/en-us/library/ie/dww52sbt(v=vs.94).aspx
+  if (isError(value)
+      && (keys.indexOf('message') >= 0 || keys.indexOf('description') >= 0)) {
+    return formatError(value);
+  }
+
+  // Some type of object without properties can be shortcutted.
+  if (keys.length === 0) {
+    if (isFunction(value)) {
+      var name = value.name ? ': ' + value.name : '';
+      return ctx.stylize('[Function' + name + ']', 'special');
+    }
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    }
+    if (isDate(value)) {
+      return ctx.stylize(Date.prototype.toString.call(value), 'date');
+    }
+    if (isError(value)) {
+      return formatError(value);
+    }
+  }
+
+  var base = '', array = false, braces = ['{', '}'];
+
+  // Make Array say that they are Array
+  if (isArray(value)) {
+    array = true;
+    braces = ['[', ']'];
+  }
+
+  // Make functions say that they are functions
+  if (isFunction(value)) {
+    var n = value.name ? ': ' + value.name : '';
+    base = ' [Function' + n + ']';
+  }
+
+  // Make RegExps say that they are RegExps
+  if (isRegExp(value)) {
+    base = ' ' + RegExp.prototype.toString.call(value);
+  }
+
+  // Make dates with properties first say the date
+  if (isDate(value)) {
+    base = ' ' + Date.prototype.toUTCString.call(value);
+  }
+
+  // Make error with message first say the error
+  if (isError(value)) {
+    base = ' ' + formatError(value);
+  }
+
+  if (keys.length === 0 && (!array || value.length == 0)) {
+    return braces[0] + base + braces[1];
+  }
+
+  if (recurseTimes < 0) {
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    } else {
+      return ctx.stylize('[Object]', 'special');
+    }
+  }
+
+  ctx.seen.push(value);
+
+  var output;
+  if (array) {
+    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
+  } else {
+    output = keys.map(function(key) {
+      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+    });
+  }
+
+  ctx.seen.pop();
+
+  return reduceToSingleString(output, base, braces);
+}
+
+
+function formatPrimitive(ctx, value) {
+  if (isUndefined(value))
+    return ctx.stylize('undefined', 'undefined');
+  if (isString(value)) {
+    var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                             .replace(/'/g, "\\'")
+                                             .replace(/\\"/g, '"') + '\'';
+    return ctx.stylize(simple, 'string');
+  }
+  if (isNumber(value))
+    return ctx.stylize('' + value, 'number');
+  if (isBoolean(value))
+    return ctx.stylize('' + value, 'boolean');
+  // For some reason typeof null is "object", so special case here.
+  if (isNull(value))
+    return ctx.stylize('null', 'null');
+}
+
+
+function formatError(value) {
+  return '[' + Error.prototype.toString.call(value) + ']';
+}
+
+
+function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
+  var output = [];
+  for (var i = 0, l = value.length; i < l; ++i) {
+    if (hasOwnProperty(value, String(i))) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          String(i), true));
+    } else {
+      output.push('');
+    }
+  }
+  keys.forEach(function(key) {
+    if (!key.match(/^\d+$/)) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          key, true));
+    }
+  });
+  return output;
+}
+
+
+function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+  var name, str, desc;
+  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
+  if (desc.get) {
+    if (desc.set) {
+      str = ctx.stylize('[Getter/Setter]', 'special');
+    } else {
+      str = ctx.stylize('[Getter]', 'special');
+    }
+  } else {
+    if (desc.set) {
+      str = ctx.stylize('[Setter]', 'special');
+    }
+  }
+  if (!hasOwnProperty(visibleKeys, key)) {
+    name = '[' + key + ']';
+  }
+  if (!str) {
+    if (ctx.seen.indexOf(desc.value) < 0) {
+      if (isNull(recurseTimes)) {
+        str = formatValue(ctx, desc.value, null);
+      } else {
+        str = formatValue(ctx, desc.value, recurseTimes - 1);
+      }
+      if (str.indexOf('\n') > -1) {
+        if (array) {
+          str = str.split('\n').map(function(line) {
+            return '  ' + line;
+          }).join('\n').substr(2);
+        } else {
+          str = '\n' + str.split('\n').map(function(line) {
+            return '   ' + line;
+          }).join('\n');
+        }
+      }
+    } else {
+      str = ctx.stylize('[Circular]', 'special');
+    }
+  }
+  if (isUndefined(name)) {
+    if (array && key.match(/^\d+$/)) {
+      return str;
+    }
+    name = JSON.stringify('' + key);
+    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+      name = name.substr(1, name.length - 2);
+      name = ctx.stylize(name, 'name');
+    } else {
+      name = name.replace(/'/g, "\\'")
+                 .replace(/\\"/g, '"')
+                 .replace(/(^"|"$)/g, "'");
+      name = ctx.stylize(name, 'string');
+    }
+  }
+
+  return name + ': ' + str;
+}
+
+
+function reduceToSingleString(output, base, braces) {
+  var numLinesEst = 0;
+  var length = output.reduce(function(prev, cur) {
+    numLinesEst++;
+    if (cur.indexOf('\n') >= 0) numLinesEst++;
+    return prev + cur.replace(/\u001b\[\d\d?m/g, '').length + 1;
+  }, 0);
+
+  if (length > 60) {
+    return braces[0] +
+           (base === '' ? '' : base + '\n ') +
+           ' ' +
+           output.join(',\n  ') +
+           ' ' +
+           braces[1];
+  }
+
+  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+}
+
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+function isArray(ar) {
+  return Array.isArray(ar);
+}
+exports.isArray = isArray;
+
+function isBoolean(arg) {
+  return typeof arg === 'boolean';
+}
+exports.isBoolean = isBoolean;
+
+function isNull(arg) {
+  return arg === null;
+}
+exports.isNull = isNull;
+
+function isNullOrUndefined(arg) {
+  return arg == null;
+}
+exports.isNullOrUndefined = isNullOrUndefined;
+
+function isNumber(arg) {
+  return typeof arg === 'number';
+}
+exports.isNumber = isNumber;
+
+function isString(arg) {
+  return typeof arg === 'string';
+}
+exports.isString = isString;
+
+function isSymbol(arg) {
+  return typeof arg === 'symbol';
+}
+exports.isSymbol = isSymbol;
+
+function isUndefined(arg) {
+  return arg === void 0;
+}
+exports.isUndefined = isUndefined;
+
+function isRegExp(re) {
+  return isObject(re) && objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+exports.isObject = isObject;
+
+function isDate(d) {
+  return isObject(d) && objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+function isError(e) {
+  return isObject(e) &&
+      (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+exports.isError = isError;
+
+function isFunction(arg) {
+  return typeof arg === 'function';
+}
+exports.isFunction = isFunction;
+
+function isPrimitive(arg) {
+  return arg === null ||
+         typeof arg === 'boolean' ||
+         typeof arg === 'number' ||
+         typeof arg === 'string' ||
+         typeof arg === 'symbol' ||  // ES6 symbol
+         typeof arg === 'undefined';
+}
+exports.isPrimitive = isPrimitive;
+
+exports.isBuffer = require('./support/isBuffer');
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+
+// log is just a thin wrapper to console.log that prepends a timestamp
+exports.log = function() {
+  console.log('%s - %s', timestamp(), exports.format.apply(exports, arguments));
+};
+
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ *
+ * @param {function} ctor Constructor function which needs to inherit the
+ *     prototype.
+ * @param {function} superCtor Constructor function to inherit prototype from.
+ */
+exports.inherits = require('inherits');
+
+exports._extend = function(origin, add) {
+  // Don't do anything if add isn't an object
+  if (!add || !isObject(add)) return origin;
+
+  var keys = Object.keys(add);
+  var i = keys.length;
+  while (i--) {
+    origin[keys[i]] = add[keys[i]];
+  }
+  return origin;
+};
+
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./support/isBuffer":58,"_process":31,"inherits":57}],60:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -11464,4 +12408,1288 @@ function extend() {
     return target
 }
 
-},{}]},{},[14]);
+},{}],"fs":[function(require,module,exports){
+(function (process){
+var util = require('util')
+var Buffer = require('buffer').Buffer
+var Stream = require('stream').Stream
+var constants = require('constants')
+var p = require('path')
+var Readable = Stream.Readable
+var Writable = Stream.Writable
+
+var FILESYSTEM_DEFAULT_SIZE = 250 * 1024 * 1024	// 250MB
+var DEBUG = false
+
+var O_APPEND = constants.O_APPEND || 0
+var O_CREAT = constants.O_CREAT || 0
+var O_EXCL = constants.O_EXCL || 0
+var O_RDONLY = constants.O_RDONLY || 0
+var O_RDWR = constants.O_RDWR || 0
+var O_SYNC = constants.O_SYNC || 0
+var O_TRUNC = constants.O_TRUNC || 0
+var O_WRONLY = constants.O_WRONLY || 0
+var fds = {}
+
+window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem
+
+function nullCheck (path, callback) {
+  if (('' + path).indexOf('\u0000') !== -1) {
+    var er = new Error('Path must be a string without null bytes.')
+    if (!callback) {
+      throw er
+    }
+    process.nextTick(function () {
+      callback(er)
+    })
+    return false
+  }
+  return true
+}
+
+function maybeCallback (cb) {
+  return util.isFunction(cb) ? cb : rethrow()
+}
+
+function makeCallback (cb) {
+  if (util.isNullOrUndefined(cb)) {
+    return rethrow()
+  }
+
+  if (!util.isFunction(cb)) {
+    throw new TypeError('callback must be a function')
+  }
+
+  return function () {
+    return cb.apply(null, arguments)
+  }
+}
+
+function rethrow () {
+  // Only enable in debug mode. A backtrace uses ~1000 bytes of heap space and
+  // is fairly slow to generate.
+  if (DEBUG) { // eslint-disable-line
+    var backtrace = new Error()
+    return function (err) {
+      if (err) {
+        backtrace.stack = err.name + ': ' + err.message +
+          backtrace.stack.substr(backtrace.name.length)
+        err = backtrace
+        throw err
+      }
+    }
+  }
+}
+
+function resolve (path) {
+  // Allow null pass through
+  if (path === null) {
+    return null
+  }
+  if (typeof path === 'undefined') {
+    return null
+  }
+  // Don't let anything but strings be passed as on
+  if (typeof path !== 'string') {
+    throw Error('Cannot resolve: Paths must be strings : ' + path.toString())
+  }
+  var retString = path
+  if (retString[0] === '/') {
+    retString = retString.slice(1)
+  }
+  if (retString[retString.length - 1] === '/') {
+    retString = retString.slice(0, retString.length - 1)
+  }
+  return retString
+}
+
+function assertEncoding (encoding) {
+  if (encoding && !Buffer.isEncoding(encoding)) {
+    throw new Error('Unknown encoding: ' + encoding)
+  }
+}
+
+function modeNum (m, def) {
+  if (util.isNumber(m)) {
+    return m
+  }
+  if (util.isString(m)) {
+    return parseInt(m, 8)
+  }
+  if (def) {
+    return modeNum(def)
+  }
+  return undefined
+}
+
+exports.chown = function (path, uid, gid, callback) {
+  resolve(path)
+  callback = makeCallback(callback)
+  if (!nullCheck(path, callback)) return
+
+  exports.exists(path, function (exists) {
+    if (exists) {
+      callback()
+    } else {
+      callback('File does not exist')
+    }
+  })
+}
+
+exports.utimes = function (name, now, mtime, cb) {
+  cb()
+}
+
+exports.fchown = function (fd, uid, gid, callback) {
+  exports.chown(fd.fullPath, uid, gid, callback)
+}
+
+exports.chmod = function (path, mode, callback) {
+  resolve(path)
+  callback = makeCallback(callback)
+  if (!nullCheck(path, callback)) return
+
+  exports.exists(path, function (exists) {
+    if (exists) {
+      callback()
+    } else {
+      callback('File does not exist')
+    }
+  })
+}
+
+exports.fchmod = function (fd, mode, callback) {
+  exports.chmod(fd.fullPath, mode, callback)
+}
+
+exports.exists = function (path, callback) {
+  //if (path === '/') {
+    console.log(path);
+    //callback(true)
+    //return
+  //}
+  path = resolve(path)
+  window.requestFileSystem(window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      cfs.root.getFile(path, {},
+        function (fileEntry) {
+          setTimeout(callback, 0, true)
+        }, function () {
+          cfs.root.getDirectory(path, {},
+            function (dirEntry) {
+              setTimeout(callback, 0, true)
+            }, function () {
+              callback(false)
+            })
+        })
+    }, function () { setTimeout(callback, 0, false) })
+}
+
+exports.mkdir = function (path, mode, callback) {
+  path = resolve(path)
+  if (util.isFunction(mode)) callback = mode
+  callback = makeCallback(callback)
+  if (!nullCheck(path, callback)) return
+
+  exports.exists(path, function (exists) {
+    if (exists) {
+      var err = new Error()
+      err.code = 'EEXIST'
+      err.path = path
+      callback(err)
+    } else {
+      exports.exists(p.dirname(path), function (exists) {
+        if (exists || p.dirname(path) === '.') {
+          window.requestFileSystem(window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+            function (cfs) {
+              cfs.root.getDirectory(path, {create: true},
+                function (dirEntry) {
+                  setTimeout(callback, 0)
+                }, callback)
+            }, callback)
+        } else {
+          var enoent = new Error()
+          enoent.code = 'ENOENT'
+          enoent.path = path
+          callback(enoent)
+        }
+      })
+    }
+  })
+}
+
+exports.rmdir = function (path, callback) {
+  if (path === '/') {
+    var permerr = new Error()
+    permerr.code = 'EPERM'
+    callback(permerr)
+    return
+  }
+  resolve(path)
+  callback = maybeCallback(callback)
+  if (!nullCheck(path, callback)) return
+
+  window.requestFileSystem(window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      cfs.root.getDirectory(path, {},
+        function (dirEntry) {
+          dirEntry.remove(function () {
+            callback()
+          }, function (err) {
+            if (err.name === 'NotFoundError') {
+              var entryerr = new Error()
+              entryerr.code = 'ENOENT'
+              entryerr.path = path
+              callback(entryerr)
+            } else {
+              callback(err)
+            }
+          })
+        }, function (err) {
+          if (err.name === 'NotFoundError') {
+            var entryerr = new Error()
+            entryerr.code = 'ENOENT'
+            entryerr.path = path
+            callback(entryerr)
+          } else {
+            callback(err)
+          }
+        })
+    }, callback)
+}
+
+exports.readdir = function (path, callback) {
+  resolve(path)
+  window.requestFileSystem(window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      cfs.root.getDirectory(path, {}, function (dirEntry) {
+        var dirReader = dirEntry.createReader()
+        dirReader.readEntries(function (entries) {
+          var fullPathList = []
+          for (var i = 0; i < entries.length; i++) {
+            fullPathList.push(entries[i].name)
+          }
+          callback(null, fullPathList)
+        }, callback)
+      }, function (err) {
+        if (err.name === 'NotFoundError') {
+          var enoent = new Error()
+          enoent.code = 'ENOENT'
+          callback(enoent)
+        } else {
+          callback(err)
+        }
+      })
+    }, callback)
+}
+
+exports.rename = function (oldPath, newPath, callback) {
+  callback = makeCallback(callback)
+
+  if (!nullCheck(oldPath, callback)) {
+    return
+  }
+
+  if (!nullCheck(newPath, callback)) {
+    return
+  }
+  // Some shennanigans here as folks rename and move
+  // at the same time :/
+  // First we strip the prefixed /
+  oldPath = resolve(oldPath)
+  newPath = resolve(newPath)
+
+  // Then we split the new location to get the name and the too directory
+  var tmpPath = newPath.split('/')
+  var newName = tmpPath.pop()
+  // if the directory happens to be root then we need to supply
+  // a / because gooogle devs
+  var toDirectory = tmpPath.join('/')
+
+  // Leaving us with oldPath the toDirectory and newName
+  window.requestFileSystem(
+    window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      // If root is / then we need a pointer to the root dir?
+      // Think this needs a couple of sun dir tests
+      if (toDirectory === '') {
+        toDirectory = cfs.root
+      }
+      cfs.root.getFile(oldPath, {},
+        function (fileEntry) {
+          fileEntry.onerror = callback
+
+          cfs.root.getDirectory(toDirectory, {}, function (dirEntry) {
+            fileEntry.moveTo(dirEntry, newName)
+            callback()
+          }, callback)
+          fileEntry.moveTo(toDirectory, newName, callback)
+        }, function (err) {
+          // we need to move the directory instead
+          if (err.name === 'TypeMismatchError') {
+            cfs.root.getDirectory('/' + oldPath, {}, function (dirEntry) {
+              dirEntry.moveTo(toDirectory, newName, function () {
+                callback()
+              }, function (err) {
+                callback(err)
+              })
+            })
+          } else {
+            callback(err)
+          }
+        })
+    }, callback)
+}
+
+exports.ftruncate = function (fd, len, callback) {
+  if (util.isFunction(len)) {
+    callback = len
+    len = 0
+  } else if (util.isUndefined(len)) {
+    len = 0
+  }
+  var cb = makeCallback(callback)
+  fd.onerror = cb
+  fd.onwriteend = function () {
+    cb()
+  }
+  fd.truncate(len)
+}
+
+exports.truncate = function (path, len, callback) {
+  if (util.isObject(path)) {
+    return exports.ftruncate(path, len, callback)
+  }
+  if (util.isFunction(len)) {
+    callback = len
+    len = 0
+  } else if (util.isUndefined(len)) {
+    len = 0
+  }
+
+  callback = maybeCallback(callback)
+  exports.open(path, 'w', function (er, fd) {
+    if (er) return callback(er)
+    fd.onwriteend = function (evt) {
+      if (evt.type !== 'writeend') {
+        callback(evt)
+      } else {
+        callback()
+      }
+    }
+    fd.truncate(len)
+  })
+}
+
+exports.stat = function (path, callback) {
+  path = resolve(path)
+  window.requestFileSystem(
+    window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      var opts = {}
+      cfs.root.getFile(path, opts, function (fileEntry) {
+        fileEntry.file(function (file) {
+          var statval = { dev: 0,
+            mode: '0777',
+            nlink: 0,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            ino: 0,
+            size: file.size,
+            atime: null,
+            mtime: file.lastModifiedDate,
+          ctime: null }
+          statval.isDirectory = function () { return false }
+          statval.isFile = function () { return true }
+          statval.isSocket = function () { return false }
+          statval.isBlockDevice = function () { return false }
+          statval.isCharacterDevice = function () { return false }
+          statval.isFIFO = function () { return false }
+          statval.isSymbolicLink = function () { return false }
+          callback(null, statval)
+        })
+      }, function (err) {
+        if (err.name === 'TypeMismatchError') {
+          cfs.root.getDirectory(path, opts, function (dirEntry) {
+            var statval = { dev: 0,
+              mode: '0777',
+              nlink: 0,
+              uid: 0,
+              gid: 0,
+              rdev: 0,
+              ino: 0,
+              size: 0,
+              atime: null,
+              mtime: new Date(0),
+              ctime: null,
+              blksize: -1,
+            blocks: -1 }
+            statval.isDirectory = function () { return true }
+            statval.isFile = function () { return false }
+            statval.isSocket = function () { return false }
+            statval.isBlockDevice = function () { return false }
+            statval.isCharacterDevice = function () { return false }
+            statval.isFIFO = function () { return false }
+            statval.isSymbolicLink = function () { return false }
+            callback(null, statval)
+          })
+        } else {
+          callback(err)
+        }
+      })
+    }, callback)
+}
+
+exports.fstat = function (fd, callback) {
+  if (typeof fds[fd.fullPath] === 'undefined') {
+    var ebadf = new Error()
+    ebadf.code = 'EBADF'
+    window.setTimeout(callback, 0, ebadf)
+  } else {
+    exports.stat(fd.fullPath, callback)
+  }
+}
+
+exports.open = function (path, flags, mode, callback) {
+  var isEntry = false
+  if (!nullCheck(path, callback)) return
+  if (typeof path === 'object') {
+    isEntry = true
+  } else {
+    path = resolve(path)
+  }
+  console.log(path.constructor)
+  flags = flagToString(flags)
+  callback = makeCallback(arguments[arguments.length - 1])
+  mode = modeNum(mode, 438 /* =0666 */)
+  // Allow for passing of fileentries to support external fs
+  if (isEntry) {
+    if (flags.indexOf('w') > -1 || flags.indexOf('a') > -1) {
+      path.createWriter(function (fileWriter) {
+        fileWriter.flags = flags
+        fileWriter.fullPath = path.fullPath
+        fds[fileWriter.fullPath] = {}
+        fds[fileWriter.fullPath].status = 'open'
+        fileWriter.key = fileWriter.fullPath
+        callback(null, fileWriter)
+      }, callback)
+    } else {
+      path.file(function (file) {
+        file.fullPath = path.fullPath
+        fds[file.fullPath] = {}
+        fds[file.fullPath].status = 'open'
+        file.key = file.fullPath
+        callback(null, file)
+      })
+    }
+    return
+  }
+  window.requestFileSystem(
+    window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      var opts = {}
+      if (flags.indexOf('w') > -1) {
+        opts = {create: true}
+      }
+      if (flags.indexOf('x') > -1) {
+        opts.exclusive = true
+      }
+      cfs.root.getFile(
+        path,
+        opts,
+        function (fileEntry) {
+          // if its a write then we get the file writer
+          // otherwise we get the file because 'standards'
+          if (flags.indexOf('w') > -1 || flags.indexOf('a') > -1) {
+            fileEntry.createWriter(function (fileWriter) {
+              fileWriter.flags = flags
+              fileWriter.fullPath = fileEntry.fullPath
+              fds[fileWriter.fullPath] = {}
+              fds[fileWriter.fullPath].status = 'open'
+              fileWriter.key = fileWriter.fullPath
+              callback(null, fileWriter)
+            }, callback)
+          } else {
+            fileEntry.file(function (file) {
+              file.fullPath = fileEntry.fullPath
+              fds[file.fullPath] = {}
+              fds[file.fullPath].status = 'open'
+              file.key = file.fullPath
+              callback(null, file)
+            })
+          }
+        }, function (err) {
+          if (err.name === 'NotFoundError') {
+            var enoent = new Error()
+            enoent.code = 'ENOENT'
+            callback(enoent)
+          } else if (err.name === 'TypeMismatchError' || err.name === 'SecurityError') {
+            // Work around for directory file descriptor
+            // It's a write on a directory
+            if (flags.indexOf('w') > -1) {
+              var eisdir = new Error()
+              eisdir.code = 'EISDIR'
+              callback(eisdir)
+            } else {
+              var dird = {}
+              dird.fullPath = path
+              callback(null, dird)
+            }
+
+          } else if (err.name === 'InvalidModificationError') {
+            var eexists = new Error()
+            eexists.code = 'EEXIST'
+            callback(eexists)
+          } else {
+            callback(err)
+          }
+        })
+    }, callback)
+}
+
+exports.read = function (fd, buffer, offset, length, position, callback) {
+  if (fd === null) {
+    callback(null, 0, '')
+    return
+  }
+  if (typeof fds[fd.key] === 'undefined') {
+    fds[fd.key].readpos = 0
+  }
+  if (position !== null) {
+    if (position >= 0) {
+      fds[fd.key].readpos = position
+    }
+  }
+  if (!util.isBuffer(buffer)) {
+    // fs.read(fd, expected.length, 0, 'utf-8', function (err, str, bytesRead)
+    // legacy string interface (fd, length, position, encoding, callback)
+    var cb = arguments[4]
+    var encoding = arguments[3]
+
+    assertEncoding(encoding)
+
+    position = arguments[2]
+    length = arguments[1]
+    // sbuf = new Buffer(length)
+    offset = 0
+    callback = function (err, bytesRead, data) {
+      if (!cb) return
+      var str = ''
+      if (fd.type === 'text/plain') {
+        str = data
+      } else {
+        str = (bytesRead > 0) ? buffer.toString(encoding, 0, bytesRead) : '' // eslint-disable-line
+      }
+      (cb)(err, str, bytesRead)
+    }
+  }
+  fd.onerror = function (err) {
+    if (err.name === 'NotFoundError') {
+      var enoent = new Error()
+      enoent.code = 'ENOENT'
+      callback(enoent)
+    } else {
+      callback(err)
+    }
+  }
+  if (offset < fds[fd.key].readpos) {
+    offset = fds[fd.key].readpos
+  }
+  var data = fd.slice(offset, offset + length)
+  var fileReader = new FileReader() // eslint-disable-line
+  fileReader.onload = function (evt) {
+    var result
+    if (fd.type === 'text/plain') {
+      result = new Buffer(this.result)
+    } else {
+      result = new Buffer(new Uint8Array(this.result))
+    }
+    result.copy(buffer)
+    fds[fd.key].readpos = offset + length
+    callback(null, result.length, result)
+  }
+  fileReader.onerror = function (err) {
+    if (err.name === 'NotFoundError') {
+      var enoent = new Error()
+      enoent.code = 'ENOENT'
+      callback(enoent)
+    } else {
+      callback(err)
+    }
+  }
+  // no-op the onprogressevent
+  fileReader.onprogress = function () {}
+  if (fd.type === 'text/plain') {
+    fileReader.readAsText(data)
+  } else {
+    fileReader.readAsArrayBuffer(data)
+  }
+}
+
+exports.readFile = function (path, options, cb) {
+  var callback = maybeCallback(arguments[arguments.length - 1])
+
+  if (util.isFunction(options) || !options) {
+    options = { encoding: null, flag: 'r' }
+  } else if (util.isString(options)) {
+    options = { encoding: options, flag: 'r' }
+  } else if (!util.isObject(options)) {
+    throw new TypeError('Bad arguments')
+  }
+  var encoding = options.encoding
+  assertEncoding(encoding)
+  window.requestFileSystem(
+    window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      var opts = {}
+      cfs.root.getFile(
+        path,
+        opts,
+        function (fileEntry) {
+          fileEntry.file(function (file) {
+            fileEntry.onerror = callback
+            var fileReader = new FileReader() // eslint-disable-line
+            fileReader.onload = function (evt) {
+              if (options.encoding === null) {
+                window.setTimeout(callback, 0, null, new Buffer(this.result, 'binary'))
+              } else if (options.encoding === 'hex') {
+                window.setTimeout(callback, 0, null, new Buffer(this.result).toString('hex'))
+              } else {
+                window.setTimeout(callback, 0, null, this.result)
+              }
+            }
+            fileReader.onerror = function (evt) {
+              callback(evt, null)
+            }
+
+            if (file.type === 'text/plain') {
+              fileReader.readAsText(file)
+            } else {
+              fileReader.readAsArrayBuffer(file)
+            }
+          })
+        }, function (err) {
+          if (err.name === 'TypeMismatchError') {
+            var eisdir = new Error()
+            eisdir.code = 'EISDIR'
+            callback(eisdir)
+          } else {
+            callback(err)
+          }
+        })
+    }, callback)
+}
+
+exports.write = function (fd, buffer, offset, length, position, callback) {
+  if (util.isBuffer(buffer)) {
+    if (util.isFunction(position)) {
+      callback = position
+      position = null
+    }
+    callback = maybeCallback(callback)
+
+    fd.onerror = callback
+    fd.onprogress = function () {}
+    var tmpbuf = buffer.slice(offset, length)
+    var bufblob = new Blob([tmpbuf], {type: 'application/octet-binary'}) // eslint-disable-line
+    if (fd.readyState > 0) {
+      // when the ready state is greater than 1 we have to wait until the write end has finished
+      // but this causes the stream to keep sending write events.
+      // So currently fs and writestream have there own implementations
+      fd.onwriteend = function () {
+        if (position !== null) {
+          fd.seek(position)
+        }
+        if (fd.flags.indexOf('a') > -1) {
+          fd.seek(fd.length)
+        }
+        fd.write(bufblob)
+        callback(null, tmpbuf.length, tmpbuf)
+      }
+    } else {
+      if (position !== null) {
+        fd.seek(position)
+      }
+      if (fd.flags.indexOf('a') > -1) {
+        fd.seek(fd.length)
+      }
+      fd.write(bufblob)
+      if (typeof callback === 'function') {
+        callback(null, tmpbuf.length, tmpbuf)
+      }
+    }
+  } else {
+    if (util.isString(buffer)) {
+      buffer += ''
+    }
+    if (!util.isFunction(position)) {
+      if (util.isFunction(offset)) {
+        position = offset
+        offset = null
+      } else {
+        position = length
+      }
+      length = 'utf8'
+    }
+    callback = maybeCallback(position)
+    fd.onerror = callback
+    var blob = new Blob([buffer], {type: 'text/plain'}) // eslint-disable-line
+
+    var buf = new Buffer(buffer)
+
+    if (fd.readyState > 0) {
+      fd.onwriteend = function () {
+        if (position !== null) {
+          fd.seek(position)
+        }
+        fd.write(blob)
+        if (typeof callback === 'function') {
+          callback(null, buf.length)
+        }
+      }
+    } else {
+      if (position !== null) {
+        fd.seek(position)
+      }
+      fd.write(blob)
+      if (typeof callback === 'function') {
+        callback(null, buf.length)
+      }
+    }
+  }
+}
+
+exports.unlink = function (fd, callback) {
+  var path = resolve(fd)
+  exports.exists(path, function (exists) {
+    if (exists) {
+      window.requestFileSystem(
+        window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+        function (cfs) {
+          cfs.root.getFile(
+            path,
+            {},
+            function (fileEntry) {
+              fileEntry.remove(callback)
+            }, function (err) {
+              if (err.name === 'TypeMismatchError') {
+                var eisdir = new Error()
+                eisdir.code = 'EISDIR'
+                eisdir.path = path
+                callback(eisdir)
+              } else {
+                callback(err)
+              }
+            })
+        }, callback)
+    } else {
+      var enoent = new Error()
+      enoent.code = 'ENOENT'
+      enoent.path = path
+      callback(enoent)
+    }
+  })
+}
+
+exports.writeFile = function (path, data, options, cb) {
+  var callback = maybeCallback(arguments[arguments.length - 1])
+
+  if (util.isFunction(options) || !options) {
+    options = { encoding: 'utf8', mode: 438, flag: 'w' }
+  } else if (util.isString(options)) {
+    options = { encoding: options, mode: 438, flag: 'w' }
+  } else if (!util.isObject(options)) {
+    throw new TypeError('Bad arguments')
+  }
+
+  assertEncoding(options.encoding)
+
+  var flag = options.flag || 'w' // eslint-disable-line
+  window.requestFileSystem(
+    window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      var opts = {}
+      if (flag.indexOf('w') > -1) {
+        opts = {create: true}
+      }
+      if (flag.indexOf('x') > -1) {
+        opts.exclusive = true
+      }
+      cfs.root.getFile(
+        path,
+        opts,
+        function (fileEntry) {
+          // if its a write then we get the file writer
+          // otherwise we get the file because 'standards'
+          if (flag.indexOf('w') > -1) {
+            fileEntry.createWriter(function (fileWriter) {
+              fileWriter.onerror = callback
+              // make sure we have an empty file
+              // fileWriter.truncate(0)
+              if (typeof callback === 'function') {
+                fileWriter.onwriteend = function (evt) {
+                  window.setTimeout(callback, 0)
+                }
+              } else {
+                fileWriter.onwriteend = function () {}
+              }
+              fileWriter.onprogress = function () {}
+              var blob
+              if (typeof data === 'string') {
+                blob = new Blob([data], {type: 'text/plain'}) // eslint-disable-line
+              } else {
+                if (options.encoding === 'hex') {
+                  // convert the hex data to a string then save it.
+                  blob = new Blob([new Buffer(data, 'hex').toString('hex')], {type: 'text/plain'}) // eslint-disable-line
+                } else {
+                  blob = new Blob([data], {type: 'application/octet-binary'}) // eslint-disable-line
+                }
+              }
+              fileWriter.write(blob)
+            }, function (evt) {
+              if (evt.type !== 'writeend') {
+                callback()
+              } else {
+                callback()
+              }
+            })
+          } else {
+            var err = new Error()
+            err.code = 'UNKNOWN'
+            err.message = 'flag not supported: ' + flag
+            callback(err)
+          }
+        }, function (err) {
+          if (err.name === 'TypeMismatchError') {
+            var eisdir = Error()
+            eisdir.code = 'EISDIR'
+            callback(eisdir)
+          } else {
+            callback(err)
+          }
+        })
+    }, function (evt) {
+      if (evt.type !== 'writeend') {
+        callback(evt)
+      } else {
+        callback()
+      }
+    })
+}
+
+exports.appendFile = function (path, data, options, cb) {
+  var callback = maybeCallback(arguments[arguments.length - 1])
+
+  if (util.isFunction(options) || !options) {
+    options = { encoding: 'utf8', mode: 438, flag: 'a' }
+  } else if (util.isString(options)) {
+    options = { encoding: options, mode: 438, flag: 'a' }
+  } else if (!util.isObject(options)) {
+    throw new TypeError('Bad arguments')
+  }
+
+  var flag = options.flag || 'a' // eslint-disable-line
+
+  window.requestFileSystem(
+    window.PERSISTENT, FILESYSTEM_DEFAULT_SIZE,
+    function (cfs) {
+      var opts = {}
+      if (flag === 'a') {
+        opts = {create: true}
+      }
+      cfs.root.getFile(
+        path,
+        opts,
+        function (fileEntry) {
+          // if its a write then we get the file writer
+          // otherwise we get the file because 'standards'
+          if (flag === 'a') {
+            fileEntry.createWriter(function (fileWriter) {
+              fileWriter.onerror = callback
+              if (typeof callback === 'function') {
+                fileWriter.onwriteend = function (evt) {
+                  window.setTimeout(callback, 0, null, evt)
+                }
+              } else {
+                fileWriter.onwriteend = function () {}
+              }
+              fileWriter.onprogress = function () {}
+              fileWriter.seek(fileWriter.length)
+              var blob = new Blob([data], {type: 'text/plain'}) // eslint-disable-line
+              fileWriter.write(blob)
+            }, callback)
+          } else {
+            callback('incorrect flag')
+          }
+        }, callback)
+    }, callback)
+}
+
+exports.fsync = function (fd, cb) {
+  if (!cb) cb = function () {}
+  if (typeof fds[fd.fullPath] === 'undefined') {
+    var ebadf = new Error()
+    ebadf.code = 'EBADF'
+    window.setTimeout(cb, 0, ebadf)
+  } else {
+    window.setTimeout(cb, 0)
+  }
+}
+
+exports.close = function (fd, callback) {
+  delete fds[fd.fullPath]
+  var cb = makeCallback(callback)
+  if (fd.readyState === 0) {
+    cb(null)
+  }
+  fd.onwriteend = function (progressinfo) {
+    cb(null, progressinfo)
+  }
+}
+
+exports.createReadStream = function (path, options) {
+  return new ReadStream(path, options)
+}
+
+util.inherits(ReadStream, Readable)
+exports.ReadStream = ReadStream
+
+function ReadStream (path, options) {
+  if (!(this instanceof ReadStream)) {
+    return new ReadStream(path, options)
+  }
+
+  // debugger // eslint-disable-line
+  // a little bit bigger buffer and water marks by default
+  options = util._extend({
+    highWaterMark: 33554432 // 1024 * 1024
+  }, options || {})
+
+  Readable.call(this, options)
+
+  this.path = path
+  this.fd = options.hasOwnProperty('fd') ? options.fd : null
+  this.flags = options.hasOwnProperty('flags') ? options.flags : 'r'
+  this.mode = options.hasOwnProperty('mode') ? options.mode : 438 /* =0666 */
+
+  this.start = options.hasOwnProperty('start') ? options.start : 0
+  this.end = options.hasOwnProperty('end') ? options.end : 0
+  this.autoClose = options.hasOwnProperty('autoClose') ?
+    options.autoClose : true
+  this.pos = undefined
+
+  if (!util.isUndefined(this.start)) {
+    if (!util.isNumber(this.start)) {
+      throw TypeError('start must be a Number')
+    }
+    if (util.isUndefined(this.end)) {
+      this.end = Infinity
+    } else if (!util.isNumber(this.end)) {
+      throw TypeError('end must be a Number')
+    }
+
+    if (this.start > this.end) {
+      throw new Error('start must be <= end')
+    }
+
+    this.pos = this.start
+  }
+  if (this.fd === null) {
+    this.pause()
+  }
+
+  if (this.path !== null) {
+    this.open()
+  }
+  this.on('end', function () {
+    if (this.autoClose) {
+      this.destroy()
+    }
+  })
+}
+
+exports.FileReadStream = exports.ReadStream // support the legacy name
+
+ReadStream.prototype.open = function () {
+  var self = this
+
+  if (this.flags === null) {
+    this.flags = 'r'
+  }
+
+  exports.open(this.path, this.flags, this.mode, function (er, fd) {
+    if (er) {
+      if (self.autoClose) {
+        self.destroy()
+      }
+      self.emit('error', er)
+      return
+    }
+    self.resume()
+    self.fd = fd
+    self.emit('open', fd)
+    self.read()
+  })
+}
+
+ReadStream.prototype._read = function (n) {
+  if (this.fd === null) {
+    return this.once('open', function () {
+      this._read(n)
+    })
+  }
+  if (this.destroyed) {
+    return
+  }
+
+  if (this.ispaused) {
+    return
+  }
+
+  if (this.pos > this.fd.size) {
+    return this.push(null)
+  }
+
+  if (this.fd.size === 0) {
+    return this.push(null)
+  }
+  var self = this
+  // Sketchy implementation that pushes the whole file to the stream
+  // But maybe fd has a size that we can iterate to?
+  var onread = function (err, length, data) {
+    if (err) {
+      if (self.autoClose) {
+        self.destroy()
+      }
+      self.emit('error', err)
+    }
+    self.push(data)
+    // self.once('finish', self.close)
+  }
+
+  // calculate the offset so read doesn't carry too much
+  if (this.end === 0) {
+    this.end = this._readableState.highWaterMark
+  } else {
+    this.end = this.end - this.start + 1
+  }
+
+  // exports.read(this.fd, new Buffer(this.fd.size), this.start, this.end, 0, onread)
+  exports.read(this.fd, new Buffer(this.fd.size), this.start, this.end, this.pos, onread)
+  this.pos += this._readableState.highWaterMark
+
+}
+
+ReadStream.prototype.destroy = function () {
+  if (this.destroyed) {
+    return
+  }
+  this.destroyed = true
+  this.close()
+}
+
+ReadStream.prototype.close = function (cb) {
+  var self = this
+  if (cb) {
+    this.once('close', cb)
+  }
+  if (this.closed) {
+    this.emit('close')
+  }
+  this.closed = true
+  close()
+  function close (fd) {
+    self.emit('close')
+    self.fd = null
+  }
+}
+
+exports.createWriteStream = function (path, options) {
+  return new WriteStream(path, options)
+}
+
+util.inherits(WriteStream, Writable)
+exports.WriteStream = WriteStream
+function WriteStream (path, options) {
+  if (!(this instanceof WriteStream)) {
+    return new WriteStream(path, options)
+  }
+
+  options = options || {}
+
+  Writable.call(this, options)
+
+  this.path = path
+  this.fd = null
+
+  this.fd = options.hasOwnProperty('fd') ? options.fd : null
+  this.flags = options.hasOwnProperty('flags') ? options.flags : 'w'
+  this.mode = options.hasOwnProperty('mode') ? options.mode : 438 /* =0666 */
+
+  this.start = options.hasOwnProperty('start') ? options.start : undefined
+  this.pos = undefined
+  this.bytesWritten = 0
+
+  if (!util.isUndefined(this.start)) {
+    if (!util.isNumber(this.start)) {
+      throw TypeError('start must be a Number')
+    }
+    if (this.start < 0) {
+      throw new Error('start must be >= zero')
+    }
+
+    this.pos = this.start
+  }
+
+  if (this.fd === null) {
+    this.open()
+  }
+
+  // dispose on finish.
+  this.once('finish', this.close)
+}
+
+exports.FileWriteStream = exports.WriteStream // support the legacy name
+
+WriteStream.prototype.open = function () {
+  this.writelist = []
+  this.currentbuffersize = 0
+  this.tds = 0
+
+  exports.open(this.path, this.flags, this.mode, function (er, fd) {
+    if (er) {
+      this.destroy()
+      this.emit('error', er)
+      return
+    }
+    this.fd = fd
+    if (this.flags.indexOf('a') > -1) {
+      this.fd.seek(this.fd.length)
+    }
+    this.emit('open', fd)
+  }.bind(this))
+}
+WriteStream.prototype.totalsize = 0
+WriteStream.prototype._write = function (data, encoding, callbk) {
+  if (!util.isBuffer(data)) {
+    return this.emit('error', new Error('Invalid data'))
+  }
+  if (!util.isObject(this.fd)) {
+    return this.once('open', function () {
+      this._write(data, encoding, callbk)
+    })
+  }
+
+  if (this.fd === null) {
+    return this.once('open', function () {
+      this._write(data, encoding, callbk)
+    })
+  }
+
+  var callback = maybeCallback(callbk)
+  this.toCall = callback
+  this.isWriting = false
+  var self = this
+
+  this.fd.onerror = function (err) {
+    if (err.name === 'TypeMismatchError') {
+      // It's a write on a directory
+      if (self.flags.indexOf('w')) {
+        var eisdir = new Error()
+        eisdir.code = 'EISDIR'
+        callback(eisdir)
+      } else {
+        callback(err)
+      }
+    } else if (err.name === 'InvalidModificationError') {
+      var eexists = new Error()
+      eexists.code = 'EEXIST'
+      callback(eexists)
+    } else {
+      callback(err)
+    }
+  }
+  this.totalsize += data.length
+  this.writelist.push(data)
+  this.currentbuffersize += data.length
+  callback(null, data.length)
+
+  if (this.currentbuffersize > 134217728) {
+    this._intenalwrite()
+  }
+
+  this.tds += data.length
+
+}
+
+WriteStream.prototype._intenalwrite = function () {
+  // filewriter isn't setup so lets ignore it and
+  // see if we try again
+  if (this.fd === null) {
+    return
+  }
+
+  if (this.fd.readystate > 0) {
+    return
+  }
+  var dataToWrite = Buffer.concat(this.writelist)
+  this.writelist = []
+  this.currentbuffersize = 0
+  var initblob = new Blob([dataToWrite]) // eslint-disable-line
+  if (typeof this.fd.write !== 'undefined') {
+    this.fd.write(initblob)
+  }
+}
+
+WriteStream.prototype.destroy = ReadStream.prototype.destroy
+WriteStream.prototype.close = function (cb) {
+  this._intenalwrite()
+  var self = this
+  if (cb) {
+    this.once('close', cb)
+  }
+  if (this.closed) {
+    this.emit('close')
+  }
+  this.closed = true
+  close()
+  function close (fd) {
+    self.emit('close')
+    self.fd = null
+  }
+}
+
+// There is no shutdown() for files.
+WriteStream.prototype.destroySoon = WriteStream.prototype.end
+
+function flagToString (flag) {
+  // Only mess with strings
+  if (util.isString(flag)) {
+    return flag
+  }
+
+  switch (flag) {
+    case O_RDONLY : return 'r'
+    case O_RDONLY | O_SYNC : return 'sr'
+    case O_RDWR : return 'r+'
+    case O_RDWR | O_SYNC : return 'sr+'
+
+    case O_TRUNC | O_CREAT | O_WRONLY : return 'w'
+    case O_TRUNC | O_CREAT | O_WRONLY | O_EXCL : return 'xw'
+
+    case O_TRUNC | O_CREAT | O_RDWR : return 'w+'
+    case O_TRUNC | O_CREAT | O_RDWR | O_EXCL : return 'xw+'
+
+    case O_APPEND | O_CREAT | O_WRONLY : return 'a'
+    case O_APPEND | O_CREAT | O_WRONLY | O_EXCL : return 'xa'
+
+    case O_APPEND | O_CREAT | O_RDWR : return 'a+'
+    case O_APPEND | O_CREAT | O_RDWR | O_EXCL : return 'xa+'
+  }
+
+  throw new Error('Unknown file open flag: ' + flag)
+}
+
+}).call(this,require('_process'))
+},{"_process":31,"buffer":19,"constants":21,"path":29,"stream":47,"util":59}]},{},[15]);
